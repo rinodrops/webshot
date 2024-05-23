@@ -1,0 +1,43 @@
+# Specify these values if authentication is necessary to access the target site
+# (default: none)
+login_url: https://domain.com/login
+username_xpath: //*[@id="username"]
+password_xpath: //*[@id="password"]
+submit_xpath: //*[@id="login"]
+username: admin
+password: 12345678
+
+# Screenshot's width (default: 1920)
+width: 1920
+
+# Wait for page to load in seconds (default: 3)
+delay: 3
+
+# Wait for login in seconds (default: 3)
+login_delay: 3
+
+# Output directory (default: none)
+output_dir: screenshots
+
+# For each screenshot [mandatory]
+screenshots:
+    # URL to capture [mandatory]
+  - url: https://domain.com/somepage
+    # Screenshot filename [mandatory]
+    filename: screenshot.png
+
+    # Maximum page height allowance (default: 10000)
+    max_height: 10000
+
+    # Wait for dynamic content to load in seconds (default: 3)
+    scroll_delay: 3
+
+    # Scroll step (default: 1200)
+    scroll_step: 1200
+
+    # Specify these values if scrollable area is not entire body
+    # (default: none)
+    content_xpath: //*[@id="scrollable"]
+
+    # Non-scrollable area's height (default: 0)
+    offset_height: 80
