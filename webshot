@@ -17,76 +17,121 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
 
-def capture_screenshot(driver, url, output_path, width, max_height, delay, scroll_delay, scroll_step, content_xpath, offset_height):
-    logging.info(f'Capturing screenshot for {url}')
+def capture_screenshot(driver, screenshot_config):
+    """
+    Captures a screenshot of a webpage using Selenium WebDriver.
 
-    # Load the page
+    Args:
+        driver (WebDriver): The Selenium WebDriver instance.
+        screenshot_config (dict): The configuration dictionary for the screenshot.
+    """
+    url = screenshot_config['url']
+    output_path = os.path.join(screenshot_config['output_dir'], screenshot_config['filename'])
+    width = screenshot_config['width']
+    max_height = screenshot_config['max_height']
+    delay = screenshot_config['delay']
+    scroll_delay = screenshot_config['scroll_delay']
+    scroll_step = screenshot_config['scroll_step']
+    content_xpath = screenshot_config['content_xpath']
+    offset_height = screenshot_config['offset_height']
+
+    logging.info(f'Capturing screenshot for: {url}')
+
+    # Load the webpage
     driver.get(url)
     driver.set_window_size(width, 1200)
     time.sleep(delay)
 
-    if content_xpath:
-        scrollable_div = driver.find_element(By.XPATH, content_xpath)
-        get_scroll_height_script = 'return arguments[0].scrollHeight'
-        scroll_to_script = 'arguments[0].scrollTo(0, {0})'
-    else:
-        scrollable_div = driver.find_element(By.TAG_NAME, 'body')
-        get_scroll_height_script = 'return document.body.scrollHeight'
-        scroll_to_script = 'window.scrollTo(0, {0})'
+    # Determine the scrollable element and scrolling scripts based on content_xpath
+    scrollable_div = driver.find_element(By.XPATH, content_xpath) if content_xpath else driver.find_element(By.TAG_NAME, 'body')
+    get_scroll_height_script = 'return arguments[0].scrollHeight' if content_xpath else 'return document.body.scrollHeight'
+    scroll_to_script = 'arguments[0].scrollTo(0, {0})' if content_xpath else 'window.scrollTo(0, {0})'
 
     # Scroll through the page incrementally to trigger lazy loading
     last_height = driver.execute_script(get_scroll_height_script, scrollable_div)
-    logging.info(f'{last_height}, {last_height}')
+    logging.debug(f'Initial page height: {last_height}')
     scroll_position = 0
     while scroll_position < last_height:
         # Scroll down in increments and wait for dynamic content to load
         driver.execute_script(scroll_to_script.format(scroll_position), scrollable_div)
         time.sleep(scroll_delay)
-        scroll_position += scroll_step  # Adjust scrolling step based on your needs
+        scroll_position += scroll_step
 
-        # Capture current height and compare with max allowed height
         new_height = driver.execute_script(get_scroll_height_script, scrollable_div)
-        logging.info(f'Page height: {new_height}, Scroll position: {scroll_position}')
+        logging.debug(f'Page height: {new_height}, Scroll position: {scroll_position}')
         if new_height > last_height:
             last_height = new_height
         if last_height > max_height:
             last_height = max_height
-            logging.info(f'Page height reaches the maximum height allowance ({max_height}px)')
+            logging.warning(f'Page height reaches the maximum height allowance ({max_height}px)')
             break
 
     last_height += offset_height
-    logging.info(f'Final page height is {last_height}px')
+    logging.info(f'Final page height: {last_height}px')
 
     # After final scroll, reset to the top and adjust window size to total height
     driver.execute_script('window.scrollTo(0, 0);', scrollable_div)
     driver.set_window_size(width, last_height)
     time.sleep(scroll_delay)
 
-    logging.info('Capturing a screenshot')
-
-    # Capture the screenshot
+    logging.info(f'Capturing screenshot: {output_path}')
     driver.save_screenshot(output_path)
+    logging.info(f'Screenshot captured successfully: {output_path}')
 
-    logging.info(f"Captured: {output_path}")
+def login(driver, login_config):
+    """
+    Performs login operation using the provided login configuration.
 
-def login(driver, login_url, username_xpath, password_xpath, submit_xpath, username, password, login_delay):
+    Args:
+        driver (WebDriver): The Selenium WebDriver instance.
+        login_config (dict): The login configuration dictionary.
+    """
+    login_url = login_config['login_url']
+    username_xpath = login_config['username_xpath']
+    password_xpath = login_config['password_xpath']
+    submit_xpath = login_config['submit_xpath']
+    username = login_config['username']
+    password = login_config['password']
+    login_delay = login_config['login_delay']
+
+    logging.info(f'Navigating to login page: {login_url}')
     driver.get(login_url)
+
     if username and username_xpath:
+        logging.debug('Entering username')
         username_input = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, username_xpath)))
         username_input.send_keys(username)
+
     if password and password_xpath:
+        logging.debug('Entering password')
         password_input = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, password_xpath)))
         password_input.send_keys(password)
+
     if submit_xpath:
+        logging.debug('Clicking submit button')
         submit_button = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, submit_xpath)))
         submit_button.click()
+
+    logging.info(f'Waiting for {login_delay} seconds after login')
     time.sleep(login_delay)
 
-def check_cookie_validity(driver, protected_url, login_url, login_delay):
-    driver.get(protected_url)
-    time.sleep(login_delay)
-    # Check if the protected page loaded successfully without being redirected to the login page
-    return driver.current_url != login_url
+def generate_filename(url):
+    """
+    Generates a filename based on the given URL.
+
+    Args:
+        url (str): The URL from which to generate the filename.
+
+    Returns:
+        str: The generated filename.
+    """
+    # Remove the scheme (http://, https://) from the URL
+    url_without_scheme = url.split('://')[-1]
+    # Replace non-alphanumeric characters with underscores
+    filename = ''.join(c if c.isalnum() else '_' for c in url_without_scheme)
+    # Limit the filename length to 255 characters
+    filename = filename[:255]
+    return f'{filename}.png'
 
 def main():
     parser = argparse.ArgumentParser(description='Capture website screenshots')
@@ -97,104 +142,89 @@ def main():
     args = parser.parse_args()
 
     # Set up logging
+    logging_level = logging.WARNING
     if args.verbose == 1:
         logging_level = logging.INFO
     elif args.verbose >= 2:
         logging_level = logging.DEBUG
-    else:
-        logging_level = logging.WARNING
 
-    logging.basicConfig(stream=sys.stdout, level=logging_level, format='%(message)s')
+    logging.basicConfig(stream=sys.stdout, level=logging_level, format='%(levelname)s: %(message)s')
 
     # Load config from YAML file if provided
     config = {}
     if args.config:
+        logging.info(f'Loading configuration from file: {args.config}')
         with open(args.config) as f:
             config = yaml.safe_load(f)
-            logging.info('Loaded configuration from file')
+            logging.info('Configuration loaded successfully')
 
-    # Extract configuration values
-    login_url = config.get('login_url')
-    username_xpath = config.get('username_xpath', '//*[@id="username"]')
-    password_xpath = config.get('password_xpath', '//*[@id="password"]')
-    submit_xpath = config.get('submit_xpath')
-    username = config.get('username')
-    password = config.get('password')
-    width = config.get('width', 1920)
-    delay = config.get('delay', 3)
-    login_delay = config.get('login_delay', 3)
-    output_dir = config.get('output', '')
-    g_max_height = config.get('max_height', 10000)
-    g_scroll_delay = config.get('scroll_delay', 3)
-    g_scroll_step = config.get('scroll_step', 1200)
-    g_content_xpath = config.get('content_xpath')
-    g_offset_height = config.get('offset_height', 0)
+    # Set default values for screenshot_config
+    default_screenshot_config = {
+        'output_dir': config.get('output_dir', ''),
+        'width': config.get('width', 1920),
+        'delay': config.get('delay', 3),
+        'max_height': config.get('max_height', 10000),
+        'scroll_delay': config.get('scroll_delay', 3),
+        'scroll_step': config.get('scroll_step', 1200),
+        'content_xpath': config.get('content_xpath'),
+        'offset_height': config.get('offset_height', 0),
+    }
 
-    # Override or set by command-line options
     if args.url:
-        config['screenshots'] = [{
-            'url': args.url,
-            'filename': args.output or 'screenshot.png',
-            'max_height': g_max_height,
-            'scroll_delay': g_scroll_delay,
-            'scroll_step': g_scroll_step,
-            'content_xpath': g_content_xpath,
-            'offset_height': g_offset_height,
-        }]
+        default_screenshot_config['url'] = args.url
+        default_screenshot_config['filename'] = args.output or generate_filename(args.url)
+        config['screenshots'] = [default_screenshot_config]
+    else:
+        for screenshot_config in config.get('screenshots', []):
+            screenshot_config.setdefault('filename', generate_filename(screenshot_config['url']))
+            for key, value in default_screenshot_config.items():
+                screenshot_config.setdefault(key, value)
 
     if 'screenshots' not in config:
         logging.error('No screenshots configuration found. Provide a config file or URL and output.')
         sys.exit(1)
 
-    screenshots_tmp = config.get('screenshots', [])
-    screenshots = []
-
-    for s in screenshots_tmp:
-        url = s.get('url')
-        filename = s.get('filename')
-        max_height = s.get('max_height', g_max_height)
-        scroll_delay = s.get('scroll_delay', g_scroll_delay)
-        scroll_step = s.get('scroll_step', g_scroll_step)
-        content_xpath = s.get('content_xpath', g_content_xpath)
-        offset_height = s.get('offset_height', g_offset_height)
-        screenshots.append({
-            'url': url,
-            'filename': filename,
-            'max_height': max_height,
-            'scroll_delay': scroll_delay,
-            'scroll_step': scroll_step,
-            'content_xpath': content_xpath,
-            'offset_height': offset_height,
-        })
+    screenshots = config['screenshots']
 
     # Create the output directory if it doesn't exist
+    output_dir = config.get('output_dir', '')
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
+        logging.debug(f'Created output directory: {output_dir}')
 
     logging.info('Preparing WebDriver')
 
     # Set up the WebDriver
     chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Always run in headless mode
+    chrome_options.add_argument("--headless")
+    logging.debug('Initializing Chrome WebDriver')
     driver = webdriver.Chrome(options=chrome_options)
     driver.set_script_timeout(300)
     driver.implicitly_wait(10)
 
     try:
-        if login_url and username and password and username_xpath and password_xpath and submit_xpath:
-            logging.info('Attempt login procedure')
-            login(driver, login_url, username_xpath, password_xpath, submit_xpath, username, password, login_delay)
+        login_config = {
+            'login_url': config.get('login_url'),
+            'username_xpath': config.get('username_xpath', '//*[@id="username"]'),
+            'password_xpath': config.get('password_xpath', '//*[@id="password"]'),
+            'submit_xpath': config.get('submit_xpath'),
+            'username': config.get('username'),
+            'password': config.get('password'),
+            'login_delay': config.get('login_delay', 3),
+        }
+
+        if all(login_config.values()):
+            logging.info('Performing login')
+            login(driver, login_config)
+        else:
+            logging.info('Login not configured')
 
         # Capture screenshots
-        for screenshot in screenshots:
-            url = screenshot['url']
-            output_filename = screenshot['filename']
-            output_path = os.path.join(output_dir, output_filename)
-            max_height = screenshot['max_height']
-            scroll_delay = screenshot['scroll_delay']
-            scroll_step = screenshot['scroll_step']
-            capture_screenshot(driver, url, output_path, width, max_height, delay, scroll_delay, scroll_step, content_xpath, offset_height)
+        logging.info(f'Capturing {len(screenshots)} screenshot(s)')
+        for screenshot_config in screenshots:
+            capture_screenshot(driver, screenshot_config)
     finally:
+        logging.info('Quitting WebDriver')
         driver.quit()
 
 if __name__ == '__main__':
