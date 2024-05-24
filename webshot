@@ -139,6 +139,13 @@ def main():
     parser.add_argument('url', nargs='?', help='URL of the target webpage')
     parser.add_argument('-o', '--output', help='Output file path for the screenshot')
     parser.add_argument('-v', '--verbose', action='count', default=0, help='Enable verbose output (-v info, -vv debug)')
+    parser.add_argument('-W', '--width', type=int, help='Screenshot width')
+    parser.add_argument('-D', '--delay', type=int, help='Delay before capturing the screenshot (in seconds)')
+    parser.add_argument('-H', '--max-height', type=int, help='Maximum height of the screenshot')
+    parser.add_argument('-S', '--scroll-delay', type=int, help='Delay between each scroll step (in seconds)')
+    parser.add_argument('-T', '--scroll-step', type=int, help='Scroll step size (in pixels)')
+    parser.add_argument('-X', '--content-xpath', help='XPath of the scrollable content element')
+    parser.add_argument('-O', '--offset-height', type=int, help='Height of the non-scrollable offset area')
     args = parser.parse_args()
 
     # Set up logging
@@ -161,13 +168,13 @@ def main():
     # Set default values for screenshot_config
     default_screenshot_config = {
         'output_dir': config.get('output_dir', ''),
-        'width': config.get('width', 1920),
-        'delay': config.get('delay', 3),
-        'max_height': config.get('max_height', 10000),
-        'scroll_delay': config.get('scroll_delay', 3),
-        'scroll_step': config.get('scroll_step', 1200),
-        'content_xpath': config.get('content_xpath'),
-        'offset_height': config.get('offset_height', 0),
+        'width': args.width or config.get('width', 1920),
+        'delay': args.delay or config.get('delay', 3),
+        'max_height': args.max_height or config.get('max_height', 10000),
+        'scroll_delay': args.scroll_delay or config.get('scroll_delay', 3),
+        'scroll_step': args.scroll_step or config.get('scroll_step', 1200),
+        'content_xpath': args.content_xpath or config.get('content_xpath'),
+        'offset_height': args.offset_height or config.get('offset_height', 0),
     }
 
     if args.url:
