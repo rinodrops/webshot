@@ -5,6 +5,7 @@
 # =============================================================================
 
 import argparse
+import json
 import logging
 import os
 import time
@@ -15,7 +16,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
-
+from selenium.common.exceptions import WebDriverException, TimeoutException
 
 def capture_screenshot(driver, screenshot_config):
     """
@@ -133,6 +134,56 @@ def generate_filename(url):
     filename = filename[:255]
     return f'{filename}.png'
 
+def capture_cookies(driver, cookie_file):
+    """
+    Captures cookies from the current WebDriver session and saves them to a file.
+
+    Args:
+        driver (WebDriver): The Selenium WebDriver instance.
+        cookie_file (str): The path to the file where cookies will be saved.
+    """
+    cookies = driver.get_cookies()
+    with open(cookie_file, 'w') as file:
+        json.dump(cookies, file)
+    logging.info(f'Cookies captured and saved to {cookie_file}')
+
+def load_cookies(driver, cookie_file):
+    """
+    Loads cookies from a file and injects them into the current WebDriver session.
+
+    Args:
+        driver (WebDriver): The Selenium WebDriver instance.
+        cookie_file (str): The path to the file containing the cookies.
+    """
+    if os.path.exists(cookie_file):
+        with open(cookie_file, 'r') as file:
+            cookies = json.load(file)
+            for cookie in cookies:
+                driver.add_cookie(cookie)
+        logging.info(f'Cookies loaded from {cookie_file} and injected into the WebDriver session')
+    else:
+        logging.warning(f'Cookie file {cookie_file} not found. Skipping cookie injection.')
+
+def is_session_valid(driver, protected_url):
+    """
+    Checks if the current session is still valid by sending a request to a protected page.
+
+    Args:
+        driver (WebDriver): The Selenium WebDriver instance.
+        protected_url (str): The URL of a protected page that requires authentication.
+
+    Returns:
+        bool: True if the session is valid, False otherwise.
+    """
+    try:
+        driver.get(protected_url)
+        # Check if the protected page loaded successfully without being redirected to the login page
+        return driver.current_url == protected_url
+    except (WebDriverException, TimeoutException) as e:
+        logging.warning(f'Error occurred while checking session validity: {str(e)}')
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(description='Capture website screenshots')
     parser.add_argument('-c', '--config', help='Config file path (YAML)')
@@ -146,6 +197,7 @@ def main():
     parser.add_argument('-T', '--scroll-step', type=int, help='Scroll step size (in pixels)')
     parser.add_argument('-X', '--content-xpath', help='XPath of the scrollable content element')
     parser.add_argument('-O', '--offset-height', type=int, help='Height of the non-scrollable offset area')
+    parser.add_argument('--cookie-file', help='File path to save and load cookies')
     args = parser.parse_args()
 
     # Set up logging
@@ -175,7 +227,12 @@ def main():
         'scroll_step': args.scroll_step or config.get('scroll_step', 1200),
         'content_xpath': args.content_xpath or config.get('content_xpath'),
         'offset_height': args.offset_height or config.get('offset_height', 0),
+        'cookie_file': args.cookie_file or config.get('cookie_file'),
     }
+
+    # Add 'cookie_file' to default_screenshot_config if provided in args or config
+    if args.cookie_file or config.get('cookie_file'):
+        default_screenshot_config['cookie_file'] = args.cookie_file or config.get('cookie_file')
 
     if args.url:
         default_screenshot_config['url'] = args.url
@@ -223,13 +280,34 @@ def main():
         if all(login_config.values()):
             logging.info('Performing login')
             login(driver, login_config)
+
+            # Capture cookies after successful login
+            if default_screenshot_config['cookie_file']:
+                capture_cookies(driver, default_screenshot_config['cookie_file'])
+
         else:
             logging.info('Login not configured')
+
+            # Load cookies from file if provided
+            if default_screenshot_config['cookie_file']:
+                load_cookies(driver, default_screenshot_config['cookie_file'])
+
+            # Check if the session is still valid using the first URL from screenshots
+            if screenshots:
+                protected_url = screenshots[0]['url']
+                if not is_session_valid(driver, protected_url):
+                    logging.warning('Session is no longer valid. Performing re-login.')
+                    login(driver, login_config)
+                    if default_screenshot_config['cookie_file']:
+                        capture_cookies(driver, default_screenshot_config['cookie_file'])
+                else:
+                    logging.info('Session is still valid.')
 
         # Capture screenshots
         logging.info(f'Capturing {len(screenshots)} screenshot(s)')
         for screenshot_config in screenshots:
             capture_screenshot(driver, screenshot_config)
+
     finally:
         logging.info('Quitting WebDriver')
         driver.quit()
