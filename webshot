@@ -277,31 +277,30 @@ def main():
             'login_delay': config.get('login_delay', 3),
         }
 
-        if all(login_config.values()):
-            logging.info('Performing login')
-            login(driver, login_config)
-
-            # Capture cookies after successful login
-            if default_screenshot_config['cookie_file']:
-                capture_cookies(driver, default_screenshot_config['cookie_file'])
-
-        else:
-            logging.info('Login not configured')
-
-            # Load cookies from file if provided
-            if default_screenshot_config['cookie_file']:
-                load_cookies(driver, default_screenshot_config['cookie_file'])
-
+        if login_config['login_url']:
             # Check if the session is still valid using the first URL from screenshots
             if screenshots:
                 protected_url = screenshots[0]['url']
                 if not is_session_valid(driver, protected_url):
-                    logging.warning('Session is no longer valid. Performing re-login.')
+                    logging.warning('Session is no longer valid. Attempting login.')
                     login(driver, login_config)
-                    if default_screenshot_config['cookie_file']:
-                        capture_cookies(driver, default_screenshot_config['cookie_file'])
+
+                    # Check if login was successful
+                    if is_session_valid(driver, protected_url):
+                        logging.info('Login successful.')
+                        # Capture cookies after successful login
+                        if default_screenshot_config['cookie_file']:
+                            capture_cookies(driver, default_screenshot_config['cookie_file'])
+                    else:
+                        logging.error('Login unsuccessful. Exiting.')
+                        sys.exit(1)
                 else:
                     logging.info('Session is still valid.')
+            else:
+                logging.error('No screenshots to capture. Exiting.')
+                sys.exit(1)
+        else:
+            logging.info('Login URL not provided, skipping login procedure')
 
         # Capture screenshots
         logging.info(f'Capturing {len(screenshots)} screenshot(s)')
