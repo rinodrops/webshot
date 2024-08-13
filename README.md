@@ -12,7 +12,7 @@ WebShot is a command-line tool for capturing screenshots of websites using Selen
 - Cookie handling for session management
 - Configurable through YAML files or command-line arguments
 
-## Prerequisite
+## Prerequisites
 
 Before running WebShot, ensure that you have the following prerequisites:
 
@@ -32,30 +32,35 @@ WebShot uses Selenium WebDriver to automate the Chrome browser to capture screen
 
 ## Installation
 
-Clone the repository, navigate to the project directory, and install the required Python dependencies:
+1. Clone the repository:
+   ```sh
+   git clone https://github.com/rinodrops/webshot.git
+   cd webshot
+   ```
 
-```sh
-$ git clone https://github.com/rinodrops/webshot.git
-$ cd webshot
-$ pip install -r requirements.txt
-```
+2. Build the project:
+   ```sh
+   make
+   ```
+   This will create a virtual environment and install the required dependencies.
 
-- You may want to create a virtual environment.
-- You can move `webshot` anywhere (e.g., `/usr/local/bin`) for site-wide availability.
+3. Install WebShot:
+   - For system-wide installation (requires sudo):
+     ```sh
+     sudo make install
+     ```
+     WebShot is installed in `/opt/webshot`, and a wrapper script in `/usr/local/bin` by default.
+   - For user-specific installation:
+     ```sh
+     make install SYSTEM_WIDE=0
+     ```
+     WebShot is installed in `$(HOME)/.local/opt/webshot`, and a wrapper script in `$(HOME)/.local/bin` by default.
+
+The install path can be changed by `INSTALL_PATH` argument, the wrapper script path by `BIN_PATH` argument, respectively.
 
 ## Usage
 
 You can provide a YAML configuration file or specify the necessary options through command-line arguments to capture screenshots. Note that a YAML file must be used to provide configuration related to the login procedure due to security concerns.
-
-### Using a YAML Configuration File
-
-Create a YAML configuration file (e.g., `config.yaml`) with the desired screenshot configurations.
-
-Run the script with the YAML configuration file:
-
-```sh
-$ webshot -c config.yaml
-```
 
 #### Screenshots URL and Its Filename
 
@@ -205,6 +210,25 @@ options:
   --cookie-file COOKIE_FILE
                         File path to save and load cookies
 ```
+
+## Uninstallation
+
+To uninstall WebShot:
+
+- If installed from source:
+  - For system-wide installation:
+    ```sh
+    sudo make uninstall
+    ```
+  - For user-specific installation:
+    ```sh
+    make uninstall SYSTEM_WIDE=0
+    ```
+
+- If installed with Homebrew:
+  ```sh
+  brew uninstall webshot
+  ```
 
 ## License
 
